@@ -1,0 +1,1948 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Video + Suara Studio</title>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #e0e0ff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(0,212,255,0.1) 0%, transparent 70%);
+            animation: pulse-bg 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse-bg {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        header h1 {
+            font-size: 3em;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf, #ff006e);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: gradient-shift 3s ease infinite;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        header p {
+            color: #8892b0;
+            font-size: 1.1em;
+            position: relative;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.4fr;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 968px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 28px;
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,212,255,0.5), transparent);
+        }
+
+        .panel h2 {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            color: #00d4ff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .input-group { margin-bottom: 18px; }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #a8b2d1;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 140px;
+            padding: 16px;
+            border-radius: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: #e0e0ff;
+            font-size: 15px;
+            resize: vertical;
+            transition: all 0.3s;
+            font-family: inherit;
+            line-height: 1.6;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
+        }
+
+        textarea::placeholder { color: #4a5568; }
+
+        select, input[type="range"], input[type="color"], input[type="number"], input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: #e0e0ff;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+
+        input[type="range"] {
+            padding: 0;
+            height: 6px;
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        input[type="color"] {
+            height: 45px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: opacity 0.3s;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            opacity: 0.8;
+        }
+
+        .range-value {
+            text-align: right;
+            color: #00d4ff;
+            font-weight: 700;
+            margin-top: 6px;
+            font-size: 0.9em;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before { left: 100%; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            color: white;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0ff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            color: #0f0f1a;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 255, 136, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .preview-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #videoCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls-bar {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .settings-grid { grid-template-columns: 1fr; }
+            header h1 { font-size: 2em; }
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 12px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #8892b0;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.3s;
+            font-weight: 600;
+            white-space: nowrap;
+            font-size: 0.9em;
+        }
+
+        .tab:hover { color: #e0e0ff; background: rgba(255,255,255,0.05); }
+        
+        .tab.active {
+            background: linear-gradient(135deg, rgba(0,212,255,0.2), rgba(123,44,191,0.2));
+            color: #00d4ff;
+            border: 1px solid rgba(0,212,255,0.3);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .template-item {
+            aspect-ratio: 16/9;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            text-align: center;
+            padding: 8px;
+            font-weight: 600;
+            color: #8892b0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .template-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .template-item:hover, .template-item.active {
+            border-color: #00d4ff;
+            color: #00d4ff;
+            background: rgba(0, 212, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .template-item.active::before {
+            opacity: 1;
+            background: radial-gradient(circle at center, rgba(0,212,255,0.2) 0%, transparent 70%);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-left: 10px;
+            background: rgba(255, 68, 68, 0.2);
+            color: #ff4444;
+            border: 1px solid rgba(255, 68, 68, 0.3);
+        }
+
+        .status-recording {
+            animation: pulse-rec 1.5s infinite;
+        }
+
+        @keyframes pulse-rec {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.4); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #ff4444;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .progress-container {
+            margin-top: 24px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf, #ff006e);
+            background-size: 200% auto;
+            width: 0%;
+            transition: width 0.4s ease;
+            border-radius: 5px;
+            animation: gradient-shift 2s ease infinite;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 12px;
+            color: #00d4ff;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .progress-detail {
+            text-align: center;
+            margin-top: 6px;
+            color: #8892b0;
+            font-size: 0.85em;
+        }
+
+        .download-section {
+            margin-top: 24px;
+            text-align: center;
+            display: none;
+            padding: 24px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            animation: fadeIn 0.5s;
+        }
+
+        .download-section.active { display: block; }
+
+        .download-section h3 {
+            color: #00ff88;
+            margin-bottom: 16px;
+            font-size: 1.3em;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 12px;
+            margin-top: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .history-list {
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .history-list::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(0,212,255,0.3);
+            border-radius: 3px;
+        }
+
+        .history-item {
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .history-item:hover {
+            background: rgba(0, 212, 255, 0.08);
+            border-color: rgba(0, 212, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .history-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(to bottom, #00d4ff, #7b2cbf);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .history-item:hover::before { opacity: 1; }
+
+        .info-box {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            font-size: 0.85em;
+            color: #a8b2d1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-box strong { color: #00d4ff; }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #00d4ff;
+            cursor: pointer;
+        }
+
+        .checkbox-wrapper label {
+            margin: 0;
+            text-transform: none;
+            letter-spacing: normal;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 15, 26, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .loading-overlay.active { display: flex; }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(0, 212, 255, 0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text {
+            color: #00d4ff;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .loading-sub {
+            color: #8892b0;
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+
+        .feature-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .tag {
+            background: rgba(0, 212, 255, 0.1);
+            color: #00d4ff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #8892b0;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Memuat FFmpeg...</div>
+        <div class="loading-sub">Ini hanya dilakukan sekali, mohon tunggu</div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>🎬 Text to Video + Suara</h1>
+            <p>Ubah teks menjadi video lengkap dengan suara dalam satu klik</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Left Panel -->
+            <div class="left-column">
+                <div class="panel">
+                    <h2>📝 Input Teks & Suara</h2>
+                    
+                    <div class="info-box">
+                        <span>ℹ️</span>
+                        <div>
+                            <strong>Satu Kesatuan:</strong> Teks → Suara (TTS) → Video. Semua otomatis tergabung dalam satu file.
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <textarea id="textInput" placeholder="Masukkan teks yang ingin diubah menjadi video dengan suara...&#10;&#10;Contoh: Halo semuanya! Selamat datang di tutorial kita hari ini. Kita akan belajar cara membuat video dari teks secara otomatis."></textarea>
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('tts')">🎙️ Suara</button>
+                        <button class="tab" onclick="switchTab('visual')">🎨 Visual</button>
+                        <button class="tab" onclick="switchTab('advanced')">⚙️ Lanjutan</button>
+                    </div>
+
+                    <!-- TTS Settings -->
+                    <div id="tts-tab" class="tab-content active">
+                        <div class="input-group">
+                            <label>Pilih Suara TTS</label>
+                            <select id="voiceSelect"></select>
+                        </div>
+                        
+                        <div class="settings-grid">
+                            <div class="input-group">
+                                <label>Kecepatan Bicara</label>
+                                <input type="range" id="rateSlider" min="0.5" max="2" step="0.1" value="1">
+                                <div class="range-value" id="rateValue">1.0x</div>
+                            </div>
+                            <div class="input-group">
+                                <label>Tinggi Nada (Pitch)</label>
+                                <input type="range" id="pitchSlider" min="0.5" max="2" step="0.1" value="1">
+                                <div class="range-value" id="pitchValue">1.0</div>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Volume</label>
+                            <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
+                            <div class="range-value" id="volumeValue">100%</div>
+                        </div>
+
+                        <div class="controls-bar" style="margin-top: 15px;">
+                            <button class="btn btn-secondary" onclick="previewVoice()">
+                                🔊 Coba Suara
+                            </button>
+                            <button class="btn btn-secondary" onclick="testFullPreview()">
+                                🎬 Preview Lengkap
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visual Settings -->
+                    <div id="visual-tab" class="tab-content">
+                        <div class="input-group">
+                            <label>Template Visual</label>
+                            <div class="template-grid">
+                                <div class="template-item active" onclick="setTemplate('gradient')" data-template="gradient">
+                                    🌈 Gradient<br>Animasi
+                                </div>
+                                <div class="template-item" onclick="setTemplate('particles')" data-template="particles">
+                                    ✨ Partikel<br>Bergerak
+                                </div>
+                                <div class="template-item" onclick="setTemplate('typewriter')" data-template="typewriter">
+                                    ⌨️ Efek<br>Mengetik
+                                </div>
+                                <div class="template-item" onclick="setTemplate('wave')" data-template="wave">
+                                    🌊 Gelombang<br>Audio
+                                </div>
+                                <div class="template-item" onclick="setTemplate('image')" data-template="image">
+                                    🖼️ Background<br>Gambar
+                                </div>
+                                <div class="template-item" onclick="setTemplate('minimal')" data-template="minimal">
+                                    ⬜ Minimalis<br>Clean
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-grid">
+                            <div class="input-group">
+                                <label>Warna Teks</label>
+                                <input type="color" id="textColor" value="#ffffff">
+                            </div>
+                            <div class="input-group">
+                                <label>Ukuran Font</label>
+                                <input type="number" id="fontSize" value="56" min="20" max="150">
+                            </div>
+                        </div>
+
+                        <div class="input-group" id="bgColorGroup">
+                            <label>Warna Background</label>
+                            <input type="color" id="bgColor" value="#0f0f1a">
+                        </div>
+
+                        <div class="input-group" id="imageUploadGroup" style="display:none;">
+                            <label>Upload Background Gambar</label>
+                            <input type="file" id="bgImage" accept="image/*" onchange="handleImageUpload(event)">
+                        </div>
+                    </div>
+
+                    <!-- Advanced Settings -->
+                    <div id="advanced-tab" class="tab-content">
+                        <div class="settings-grid">
+                            <div class="input-group">
+                                <label>Resolusi Video</label>
+                                <select id="resolution">
+                                    <option value="720">HD (1280x720)</option>
+                                    <option value="1080" selected>Full HD (1920x1080)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>Frame Rate</label>
+                                <select id="fps">
+                                    <option value="30" selected>30 FPS</option>
+                                    <option value="60">60 FPS</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="showSubtitles" checked>
+                            <label for="showSubtitles">Tampilkan Subtitle di Bawah</label>
+                        </div>
+                        
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="highlightWords" checked>
+                            <label for="highlightWords">Highlight Kata yang Sedang Dibaca</label>
+                        </div>
+
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="addWatermark" checked>
+                            <label for="addWatermark">Tambah Watermark</label>
+                        </div>
+
+                        <div class="feature-tags">
+                            <span class="tag">FFmpeg.wasm</span>
+                            <span class="tag">Web Speech API</span>
+                            <span class="tag">Canvas 2D</span>
+                            <span class="tag">WebM/MP4</span>
+                        </div>
+                    </div>
+
+                    <div class="controls-bar" style="margin-top: 25px;">
+                        <button class="btn btn-primary" id="generateBtn" onclick="generateVideo()">
+                            🎬 Generate Video + Suara
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearAll()">
+                            🗑️ Reset
+                        </button>
+                    </div>
+
+                    <div class="progress-container" id="progressContainer">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">Mempersiapkan...</div>
+                        <div class="progress-detail" id="progressDetail"></div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>📊 Statistik</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="charCount">0</div>
+                            <div class="stat-label">Karakter</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="wordCount">0</div>
+                            <div class="stat-label">Kata</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="estDuration">0s</div>
+                            <div class="stat-label">Estimasi</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>📚 Riwayat Video</h2>
+                    <div class="history-list" id="historyList">
+                        <div style="text-align: center; color: #4a5568; padding: 30px 20px;">
+                            Belum ada riwayat video
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Preview -->
+            <div class="right-column">
+                <div class="panel">
+                    <h2>
+                        👁️ Preview Langsung
+                        <span class="status-badge" id="statusBadge" style="display:none;">
+                            <span class="status-dot"></span> REC
+                        </span>
+                    </h2>
+                    
+                    <div class="preview-container">
+                        <canvas id="videoCanvas"></canvas>
+                    </div>
+
+                    <div class="controls-bar">
+                        <button class="btn btn-secondary" onclick="togglePlay()" id="playBtn">
+                            ▶️ Play
+                        </button>
+                        <button class="btn btn-secondary" onclick="stopPreview()">
+                            ⏹️ Stop
+                        </button>
+                    </div>
+
+                    <div class="download-section" id="downloadSection">
+                        <h3>✅ Video + Suara Berhasil Dibuat!</h3>
+                        <p style="color: #8892b0; margin-bottom: 15px; font-size: 0.9em;">
+                            File video sudah termasuk suara TTS. Siap diunduh.
+                        </p>
+                        <video id="resultVideo" controls></video>
+                        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                            <a id="downloadWebm" class="btn btn-success" download="video-dengan-suara.webm">
+                                ⬇️ Download WebM
+                            </a>
+                            <a id="downloadMp4" class="btn btn-primary" style="display:none;">
+                                ⬇️ Download MP4 (FFmpeg)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== GLOBAL VARIABLES ====================
+        let canvas, ctx;
+        let animationId;
+        let isPlaying = false;
+        let isRecording = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let audioChunks = [];
+        let currentTemplate = 'gradient';
+        let bgImageObj = null;
+        let words = [];
+        let currentWordIndex = 0;
+        let startTime = 0;
+        let ffmpeg = null;
+        let ffmpegLoaded = false;
+        let audioContext = null;
+        let audioDestination = null;
+        let combinedStream = null;
+        let speechUtterance = null;
+
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', async () => {
+            canvas = document.getElementById('videoCanvas');
+            ctx = canvas.getContext('2d');
+            
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Load voices
+            loadVoices();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+
+            // Load FFmpeg
+            await initFFmpeg();
+
+            // Event listeners
+            setupEventListeners();
+            
+            // Initial render
+            renderFrame();
+        });
+
+        async function initFFmpeg() {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.classList.add('active');
+            
+            try {
+                const { FFmpeg } = FFmpegWASM;
+                ffmpeg = new FFmpeg();
+                
+                // Load from CDN
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.4/dist/umd';
+                await ffmpeg.load({
+                    coreURL: `${baseURL}/ffmpeg-core.js`,
+                    wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+                });
+                
+                ffmpegLoaded = true;
+                console.log('FFmpeg loaded successfully');
+            } catch (e) {
+                console.warn('FFmpeg load failed, will use native recording:', e);
+            } finally {
+                loadingOverlay.classList.remove('active');
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('rateSlider').addEventListener('input', (e) => {
+                document.getElementById('rateValue').textContent = e.target.value + 'x';
+                updateStats();
+            });
+            document.getElementById('pitchSlider').addEventListener('input', (e) => {
+                document.getElementById('pitchValue').textContent = e.target.value;
+            });
+            document.getElementById('volumeSlider').addEventListener('input', (e) => {
+                document.getElementById('volumeValue').textContent = Math.round(e.target.value * 100) + '%';
+            });
+            document.getElementById('textInput').addEventListener('input', updateStats);
+            document.getElementById('resolution').addEventListener('change', resizeCanvas);
+        }
+
+        function updateStats() {
+            const text = document.getElementById('textInput').value;
+            const charCount = text.length;
+            const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+            const rate = parseFloat(document.getElementById('rateSlider').value);
+            const estSeconds = Math.ceil((wordCount / 130) * 60 / rate);
+            
+            document.getElementById('charCount').textContent = charCount;
+            document.getElementById('wordCount').textContent = wordCount;
+            document.getElementById('estDuration').textContent = estSeconds + 's';
+        }
+
+        function resizeCanvas() {
+            const resolution = document.getElementById('resolution').value;
+            if (resolution === '1080') {
+                canvas.width = 1920;
+                canvas.height = 1080;
+            } else {
+                canvas.width = 1280;
+                canvas.height = 720;
+            }
+            if (!isPlaying) renderFrame();
+        }
+
+        function loadVoices() {
+            const voiceSelect = document.getElementById('voiceSelect');
+            const voices = speechSynthesis.getVoices();
+            
+            voiceSelect.innerHTML = '';
+            
+            // Prioritize Indonesian and quality voices
+            const preferredVoices = voices.filter(v => 
+                v.lang.startsWith('id') || v.lang.startsWith('en')
+            ).sort((a, b) => {
+                if (a.lang.startsWith('id') && !b.lang.startsWith('id')) return -1;
+                if (!a.lang.startsWith('id') && b.lang.startsWith('id')) return 1;
+                return 0;
+            });
+            
+            preferredVoices.forEach((voice) => {
+                const option = document.createElement('option');
+                option.value = voices.indexOf(voice);
+                option.textContent = `${voice.name} (${voice.lang})${voice.default ? ' ⭐' : ''}`;
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        // ==================== UI FUNCTIONS ====================
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        function setTemplate(template) {
+            currentTemplate = template;
+            document.querySelectorAll('.template-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.template === template);
+            });
+            
+            document.getElementById('imageUploadGroup').style.display = 
+                template === 'image' ? 'block' : 'none';
+            document.getElementById('bgColorGroup').style.display = 
+                template === 'image' ? 'none' : 'block';
+            
+            if (!isPlaying) renderFrame();
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    bgImageObj = new Image();
+                    bgImageObj.onload = () => {
+                        if (!isPlaying) renderFrame();
+                    };
+                    bgImageObj.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // ==================== TTS FUNCTIONS ====================
+        function getSelectedVoice() {
+            const voices = speechSynthesis.getVoices();
+            const selectedIndex = document.getElementById('voiceSelect').value;
+            return voices[selectedIndex] || voices[0];
+        }
+
+        function createUtterance(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = getSelectedVoice();
+            utterance.rate = parseFloat(document.getElementById('rateSlider').value);
+            utterance.pitch = parseFloat(document.getElementById('pitchSlider').value);
+            utterance.volume = parseFloat(document.getElementById('volumeSlider').value);
+            return utterance;
+        }
+
+        function previewVoice() {
+            const text = document.getElementById('textInput').value || 'Ini adalah contoh suara teks ke ucapan';
+            const utterance = createUtterance(text.substring(0, 100));
+            
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utterance);
+        }
+
+        function testFullPreview() {
+            if (isPlaying) {
+                stopPreview();
+                return;
+            }
+            
+            const text = document.getElementById('textInput').value;
+            if (!text) {
+                alert('Masukkan teks terlebih dahulu!');
+                return;
+            }
+            
+            startPreview();
+        }
+
+        // ==================== VISUAL TEMPLATES ====================
+        const templates = {
+            gradient: (time) => {
+                const hue = (time * 0.02) % 360;
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, `hsl(${hue}, 70%, 15%)`);
+                gradient.addColorStop(0.5, `hsl(${(hue + 30) % 360}, 60%, 20%)`);
+                gradient.addColorStop(1, `hsl(${(hue + 60) % 360}, 70%, 15%)`);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            },
+            
+            particles: (time) => {
+                ctx.fillStyle = document.getElementById('bgColor').value || '#0f0f1a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                for (let i = 0; i < 60; i++) {
+                    const x = (Math.sin(time * 0.0008 + i * 1.5) * 0.5 + 0.5) * canvas.width;
+                    const y = (Math.cos(time * 0.001 + i * 2.3) * 0.5 + 0.5) * canvas.height;
+                    const size = Math.sin(time * 0.005 + i) * 25 + 35;
+                    
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+                    gradient.addColorStop(0, `hsla(${(time * 0.03 + i * 8) % 360}, 80%, 60%, 0.15)`);
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            },
+            
+            typewriter: (time) => {
+                ctx.fillStyle = document.getElementById('bgColor').value || '#0a0a0a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Grid lines
+                ctx.strokeStyle = 'rgba(0, 212, 255, 0.05)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < canvas.width; i += 50) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+                }
+                for (let i = 0; i < canvas.height; i += 50) {
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+                }
+                
+                // Cursor
+                if (Math.floor(time / 530) % 2 === 0) {
+                    ctx.fillStyle = '#00d4ff';
+                    ctx.fillRect(canvas.width/2 + 200, canvas.height/2 - 30, 3, 50);
+                }
+            },
+            
+            wave: (time) => {
+                ctx.fillStyle = document.getElementById('bgColor').value || '#0f0f1a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Multiple wave layers
+                const colors = ['#00d4ff', '#7b2cbf', '#ff006e'];
+                colors.forEach((color, idx) => {
+                    ctx.beginPath();
+                    ctx.moveTo(0, canvas.height / 2);
+                    
+                    for (let x = 0; x < canvas.width; x += 3) {
+                        const freq = 0.008 + idx * 0.003;
+                        const amp = 60 + idx * 20;
+                        const speed = 0.003 + idx * 0.001;
+                        const y = canvas.height / 2 + 
+                                 Math.sin(x * freq + time * speed) * amp +
+                                 Math.sin(x * freq * 2.5 + time * speed * 1.3) * amp * 0.4;
+                        ctx.lineTo(x, y);
+                    }
+                    
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2 + idx;
+                    ctx.globalAlpha = 0.3 - idx * 0.08;
+                    ctx.stroke();
+                });
+                ctx.globalAlpha = 1;
+            },
+            
+            image: (time) => {
+                if (bgImageObj) {
+                    const scale = Math.max(canvas.width / bgImageObj.width, canvas.height / bgImageObj.height);
+                    const x = (canvas.width - bgImageObj.width * scale) / 2;
+                    const y = (canvas.height - bgImageObj.height * scale) / 2;
+                    ctx.drawImage(bgImageObj, x, y, bgImageObj.width * scale, bgImageObj.height * scale);
+                    
+                    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                } else {
+                    ctx.fillStyle = '#1e1e2e';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            },
+            
+            minimal: (time) => {
+                ctx.fillStyle = document.getElementById('bgColor').value || '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        };
+
+        // ==================== RENDERING ====================
+        function renderFrame(time = 0) {
+            if (!ctx) return;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            templates[currentTemplate](time);
+            
+            // Text
+            const text = document.getElementById('textInput').value || 'Preview Teks Anda';
+            const fontSize = parseInt(document.getElementById('fontSize').value);
+            ctx.font = `bold ${fontSize}px 'Segoe UI', system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const showHighlight = document.getElementById('highlightWords').checked && isPlaying;
+            const textColor = document.getElementById('textColor').value;
+            const words_array = text.split(' ');
+            
+            if (showHighlight && currentWordIndex < words_array.length && words_array.length > 0) {
+                // Draw full text dimmed
+                ctx.fillStyle = currentTemplate === 'minimal' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.25)';
+                wrapText(text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, fontSize * 1.5);
+                
+                // Calculate highlighted word position
+                const beforeWords = words_array.slice(0, currentWordIndex);
+                const currentWord = words_array[currentWordIndex];
+                
+                ctx.fillStyle = '#00d4ff';
+                ctx.shadowColor = '#00d4ff';
+                ctx.shadowBlur = 20;
+                
+                // Reconstruct text with highlight
+                const beforeText = beforeWords.join(' ');
+                const fullText = text;
+                
+                // Simple approach: draw the whole text in highlight color
+                // but this is complex for word-by-word, so we use a simpler visual indicator
+                ctx.fillStyle = textColor;
+                ctx.shadowBlur = 0;
+                wrapText(text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, fontSize * 1.5);
+                
+                // Draw highlight box around current word area
+                const approxY = canvas.height / 2;
+                ctx.strokeStyle = '#00d4ff';
+                ctx.lineWidth = 3;
+                ctx.shadowColor = '#00d4ff';
+                ctx.shadowBlur = 15;
+                ctx.strokeRect(canvas.width * 0.2, approxY - fontSize/2 - 10, canvas.width * 0.6, fontSize + 20);
+                ctx.shadowBlur = 0;
+            } else {
+                ctx.fillStyle = textColor;
+                if (currentTemplate === 'minimal') {
+                    ctx.fillStyle = '#1a1a2e';
+                }
+                wrapText(text, canvas.width / 2, canvas.height / 2, canvas.width * 0.8, fontSize * 1.5);
+            }
+            
+            // Subtitle
+            if (document.getElementById('showSubtitles').checked && isPlaying) {
+                const subY = canvas.height - 80;
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                roundRect(50, subY - 15, canvas.width - 100, 60, 10);
+                ctx.fill();
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = `24px 'Segoe UI', sans-serif`;
+                const subText = text.substring(0, 120) + (text.length > 120 ? '...' : '');
+                ctx.fillText(subText, canvas.width / 2, subY + 15);
+            }
+            
+            // Watermark
+            if (document.getElementById('addWatermark').checked) {
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.font = '16px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText('TextToVideo Studio', canvas.width - 30, canvas.height - 30);
+                ctx.textAlign = 'center';
+            }
+        }
+
+        function wrapText(text, x, y, maxWidth, lineHeight) {
+            const words = text.split(' ');
+            let line = '';
+            let lines = [];
+            
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && n > 0) {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+            
+            const startY = y - (lines.length - 1) * lineHeight / 2;
+            
+            lines.forEach((line, i) => {
+                ctx.fillText(line, x, startY + i * lineHeight);
+            });
+        }
+
+        function roundRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        // ==================== ANIMATION CONTROL ====================
+        function animate() {
+            if (!isPlaying) return;
+            const time = Date.now() - startTime;
+            renderFrame(time);
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function togglePlay() {
+            if (isPlaying) stopPreview();
+            else startPreview();
+        }
+
+        function startPreview() {
+            if (isPlaying) return;
+            
+            const text = document.getElementById('textInput').value;
+            if (!text) {
+                alert('Masukkan teks terlebih dahulu!');
+                return;
+            }
+            
+            isPlaying = true;
+            startTime = Date.now();
+            document.getElementById('playBtn').innerHTML = '⏸️ Pause';
+            
+            words = text.split(/\s+/);
+            currentWordIndex = 0;
+            
+            // Start TTS with word tracking
+            speechUtterance = createUtterance(text);
+            
+            speechUtterance.onboundary = (event) => {
+                if (event.name === 'word') {
+                    const charIndex = event.charIndex;
+                    const textUpToIndex = text.substring(0, charIndex);
+                    currentWordIndex = textUpToIndex.trim().split(/\s+/).length - 1;
+                }
+            };
+            
+            speechUtterance.onend = () => {
+                if (!isRecording) {
+                    setTimeout(() => stopPreview(), 500);
+                }
+            };
+            
+            speechSynthesis.cancel();
+            speechSynthesis.speak(speechUtterance);
+            
+            animate();
+        }
+
+        function stopPreview() {
+            isPlaying = false;
+            cancelAnimationFrame(animationId);
+            document.getElementById('playBtn').innerHTML = '▶️ Play';
+            
+            speechSynthesis.cancel();
+            currentWordIndex = 0;
+            
+            if (!isRecording) renderFrame();
+        }
+
+        // ==================== VIDEO GENERATION ====================
+        async function generateVideo() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) {
+                alert('Silakan masukkan teks terlebih dahulu!');
+                return;
+            }
+
+            if (isRecording) return;
+            
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '⏳ Memproses...';
+            
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const progressDetail = document.getElementById('progressDetail');
+            const statusBadge = document.getElementById('statusBadge');
+            
+            progressContainer.style.display = 'block';
+            statusBadge.style.display = 'inline-flex';
+            
+            try {
+                updateProgress(5, 'Menyiapkan audio dan video...');
+                
+                // Step 1: Generate audio blob from TTS
+                const audioBlob = await generateTTSAudio(text);
+                updateProgress(30, 'Audio TTS berhasil dibuat...');
+                
+                // Step 2: Record video from canvas
+                const videoBlob = await recordCanvasVideo(text);
+                updateProgress(70, 'Video visual berhasil direkam...');
+                
+                // Step 3: Merge audio + video using FFmpeg
+                updateProgress(75, 'Menggabungkan audio dan video...');
+                const finalBlob = await mergeAudioVideo(videoBlob, audioBlob);
+                updateProgress(95, 'Finalisasi...');
+                
+                // Step 4: Show result
+                const url = URL.createObjectURL(finalBlob);
+                
+                const resultVideo = document.getElementById('resultVideo');
+                const downloadWebm = document.getElementById('downloadWebm');
+                
+                resultVideo.src = url;
+                downloadWebm.href = url;
+                downloadWebm.download = `video-${Date.now()}.webm`;
+                
+                document.getElementById('downloadSection').classList.add('active');
+                
+                // Add to history
+                addToHistory(text, url);
+                
+                updateProgress(100, 'Selesai!');
+                
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    statusBadge.style.display = 'none';
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                progressText.textContent = 'Error: ' + error.message;
+                progressFill.style.width = '100%';
+                progressFill.style.background = '#ff4444';
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '🎬 Generate Video + Suara';
+                isRecording = false;
+            }
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
+            document.getElementById('progressDetail').textContent = `${percent}% selesai`;
+        }
+
+        // Generate TTS audio as Blob using AudioContext
+        async function generateTTSAudio(text) {
+            return new Promise((resolve, reject) => {
+                // Create audio context for recording
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioDestination = audioContext.createMediaStreamDestination();
+                
+                const utterance = createUtterance(text);
+                
+                // We need to capture the audio output
+                // Since Web Speech API outputs to speakers directly, we use a workaround:
+                // Record the system audio using getDisplayMedia with audio
+                
+                // Alternative: Use the speech synthesis and estimate timing
+                // For now, we'll create a silent audio track with correct duration
+                // and rely on the visual sync
+                
+                // Better approach: Use MediaRecorder to capture tab audio
+                const duration = estimateDuration(text);
+                
+                // Create a silent audio buffer with correct duration
+                const sampleRate = 44100;
+                const numberOfFrames = duration * sampleRate;
+                const audioBuffer = audioContext.createBuffer(2, numberOfFrames, sampleRate);
+                
+                // Fill with silence (or we could generate tone)
+                // Actually, let's try to capture real TTS audio
+                
+                // Method: Create an oscillator as placeholder
+                // Real TTS capture requires Web Audio API integration which is limited
+                
+                // For production, we'll use a different approach:
+                // Record the canvas and use the computer's audio output loopback
+                
+                reject(new Error('TTS audio capture memerlukan setup audio loopback. Silakan gunakan Preview + Screen Recording sebagai alternatif.'));
+            });
+        }
+
+        function estimateDuration(text) {
+            const wordCount = text.trim().split(/\s+/).length;
+            const rate = parseFloat(document.getElementById('rateSlider').value);
+            return Math.max((wordCount / 130) * 60 / rate, 3);
+        }
+
+        // Alternative: Record canvas with system audio capture
+        async function recordCanvasWithAudio(text) {
+            const fps = parseInt(document.getElementById('fps').value);
+            
+            // Get canvas stream
+            const canvasStream = canvas.captureStream(fps);
+            
+            // Try to get system audio
+            let audioStream = null;
+            try {
+                audioStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: false,
+                    audio: true
+                });
+            } catch (e) {
+                console.log('Audio capture not available, recording video only');
+            }
+            
+            // Combine streams
+            const tracks = [
+                ...canvasStream.getVideoTracks(),
+                ...(audioStream ? audioStream.getAudioTracks() : [])
+            ];
+            
+            const combinedStream = new MediaStream(tracks);
+            
+            // Setup recorder
+            const mimeType = 'video/webm;codecs=vp9,opus';
+            const options = {
+                mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm',
+                videoBitsPerSecond: 8000000
+            };
+            
+            const recorder = new MediaRecorder(combinedStream, options);
+            const chunks = [];
+            
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+            
+            return new Promise((resolve, reject) => {
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    if (audioStream) {
+                        audioStream.getTracks().forEach(t => t.stop());
+                    }
+                    resolve(blob);
+                };
+                
+                recorder.onerror = reject;
+                
+                // Start
+                recorder.start(100);
+                isRecording = true;
+                
+                // Start visual
+                startTime = Date.now();
+                isPlaying = true;
+                words = text.split(/\s+/);
+                currentWordIndex = 0;
+                
+                // Start TTS
+                speechUtterance = createUtterance(text);
+                speechUtterance.onboundary = (event) => {
+                    if (event.name === 'word') {
+                        const charIndex = event.charIndex;
+                        const textUpToIndex = text.substring(0, charIndex);
+                        currentWordIndex = textUpToIndex.trim().split(/\s+/).length - 1;
+                    }
+                };
+                
+                speechSynthesis.cancel();
+                speechSynthesis.speak(speechUtterance);
+                
+                animate();
+                
+                // Stop after TTS ends + buffer
+                speechUtterance.onend = () => {
+                    setTimeout(() => {
+                        recorder.stop();
+                        isRecording = false;
+                        isPlaying = false;
+                        cancelAnimationFrame(animationId);
+                        speechSynthesis.cancel();
+                    }, 1000);
+                };
+                
+                // Safety timeout
+                const maxDuration = estimateDuration(text) * 1000 + 5000;
+                setTimeout(() => {
+                    if (recorder.state !== 'inactive') {
+                        recorder.stop();
+                    }
+                }, maxDuration);
+            });
+        }
+
+        // Record canvas video only
+        async function recordCanvasVideo(text) {
+            const fps = parseInt(document.getElementById('fps').value);
+            const canvasStream = canvas.captureStream(fps);
+            
+            const mimeType = 'video/webm;codecs=vp9';
+            const options = {
+                mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm',
+                videoBitsPerSecond: 8000000
+            };
+            
+            const recorder = new MediaRecorder(canvasStream, options);
+            const chunks = [];
+            
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+            
+            return new Promise((resolve, reject) => {
+                recorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    resolve(blob);
+                };
+                
+                recorder.onerror = reject;
+                
+                recorder.start(100);
+                isRecording = true;
+                
+                // Start visual animation synced with TTS timing
+                startTime = Date.now();
+                isPlaying = true;
+                words = text.split(/\s+/);
+                currentWordIndex = 0;
+                
+                // Simulate word timing for visual sync
+                const duration = estimateDuration(text);
+                const wordInterval = (duration * 1000) / words.length;
+                
+                let wordTimer = 0;
+                const wordIntervalId = setInterval(() => {
+                    if (currentWordIndex < words.length - 1) {
+                        currentWordIndex++;
+                    } else {
+                        clearInterval(wordIntervalId);
+                    }
+                }, wordInterval);
+                
+                animate();
+                
+                // Stop after estimated duration
+                setTimeout(() => {
+                    clearInterval(wordIntervalId);
+                    recorder.stop();
+                    isRecording = false;
+                    isPlaying = false;
+                    cancelAnimationFrame(animationId);
+                    currentWordIndex = 0;
+                }, duration * 1000 + 1000);
+            });
+        }
+
+        // Merge audio and video using FFmpeg.wasm
+        async function mergeAudioVideo(videoBlob, audioBlob) {
+            if (!ffmpegLoaded || !ffmpeg) {
+                // Return video only if FFmpeg not available
+                console.warn('FFmpeg not available, returning video without audio');
+                return videoBlob;
+            }
+            
+            const { fetchFile } = FFmpegUtil;
+            
+            // Write files to FFmpeg virtual filesystem
+            await ffmpeg.writeFile('input_video.webm', await fetchFile(videoBlob));
+            await ffmpeg.writeFile('input_audio.webm', await fetchFile(audioBlob));
+            
+            // Merge using FFmpeg
+            await ffmpeg.exec([
+                '-i', 'input_video.webm',
+                '-i', 'input_audio.webm',
+                '-c:v', 'copy',
+                '-c:a', 'copy',
+                '-shortest',
+                'output.webm'
+            ]);
+            
+            // Read output
+            const data = await ffmpeg.readFile('output.webm');
+            return new Blob([data.buffer], { type: 'video/webm' });
+        }
+
+        // Main generation function that handles the full pipeline
+        async function generateVideo() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) {
+                alert('Silakan masukkan teks terlebih dahulu!');
+                return;
+            }
+
+            if (isRecording) return;
+            
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '⏳ Merekam...';
+            
+            const progressContainer = document.getElementById('progressContainer');
+            const statusBadge = document.getElementById('statusBadge');
+            
+            progressContainer.style.display = 'block';
+            statusBadge.style.display = 'inline-flex';
+            
+            try {
+                updateProgress(10, 'Memulai rekaman layar + audio...');
+                
+                // Method: Use getDisplayMedia to capture tab audio + canvas video
+                // This is the most reliable way to capture TTS audio in browser
+                
+                const fps = parseInt(document.getElementById('fps').value);
+                const canvasStream = canvas.captureStream(fps);
+                
+                // Request screen share with audio (user needs to select "Tab" and check "Share audio")
+                let displayStream = null;
+                try {
+                    displayStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { displaySurface: 'browser' },
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            sampleRate: 44100
+                        },
+                        selfBrowserSurface: 'include'
+                    });
+                } catch (e) {
+                    alert('Untuk merekam suara, pilih "Tab ini" dan centang "Bagikan audio" saat diminta.\nAtau gunakan tombol Preview dan rekam dengan OBS/screen recorder.');
+                    throw e;
+                }
+                
+                updateProgress(20, 'Rekaman dimulai, memutar TTS...');
+                
+                // Combine canvas video with display audio
+                const tracks = [
+                    ...canvasStream.getVideoTracks(),
+                    ...displayStream.getAudioTracks()
+                ];
+                
+                const combinedStream = new MediaStream(tracks);
+                
+                const mimeType = 'video/webm;codecs=vp9,opus';
+                const options = {
+                    mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm',
+                    videoBitsPerSecond: 8000000,
+                    audioBitsPerSecond: 128000
+                };
+                
+                const recorder = new MediaRecorder(combinedStream, options);
+                const chunks = [];
+                
+                recorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunks.push(e.data);
+                };
+                
+                const recordingPromise = new Promise((resolve, reject) => {
+                    recorder.onstop = () => {
+                        displayStream.getTracks().forEach(t => t.stop());
+                        const blob = new Blob(chunks, { type: 'video/webm' });
+                        resolve(blob);
+                    };
+                    recorder.onerror = reject;
+                });
+                
+                recorder.start(100);
+                isRecording = true;
+                
+                // Start visual
+                startTime = Date.now();
+                isPlaying = true;
+                words = text.split(/\s+/);
+                currentWordIndex = 0;
+                
+                updateProgress(40, 'TTS sedang berbicara...');
+                
+                // Start TTS
+                speechUtterance = createUtterance(text);
+                
+                speechUtterance.onboundary = (event) => {
+                    if (event.name === 'word') {
+                        const charIndex = event.charIndex;
+                        const textUpToIndex = text.substring(0, charIndex);
+                        currentWordIndex = textUpToIndex.trim().split(/\s+/).length - 1;
+                    }
+                };
+                
+                speechSynthesis.cancel();
+                speechSynthesis.speak(speechUtterance);
+                
+                animate();
+                
+                // Update progress during recording
+                const duration = estimateDuration(text);
+                const progressInterval = setInterval(() => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    const progress = Math.min(20 + (elapsed / duration) * 60, 80);
+                    updateProgress(Math.round(progress), 'Merekam video + suara TTS...');
+                }, 500);
+                
+                // Wait for TTS to finish
+                await new Promise(resolve => {
+                    speechUtterance.onend = resolve;
+                    // Safety timeout
+                    setTimeout(resolve, duration * 1000 + 3000);
+                });
+                
+                clearInterval(progressInterval);
+                updateProgress(85, 'Menyelesaikan rekaman...');
+                
+                // Stop after brief delay
+                await new Promise(r => setTimeout(r, 1000));
+                recorder.stop();
+                
+                const finalBlob = await recordingPromise;
+                
+                updateProgress(95, 'Memproses hasil...');
+                
+                // Show result
+                const url = URL.createObjectURL(finalBlob);
+                
+                const resultVideo = document.getElementById('resultVideo');
+                const downloadWebm = document.getElementById('downloadWebm');
+                
+                resultVideo.src = url;
+                downloadWebm.href = url;
+                downloadWebm.download = `video-dengan-suara-${Date.now()}.webm`;
+                
+                document.getElementById('downloadSection').classList.add('active');
+                
+                addToHistory(text, url);
+                
+                updateProgress(100, 'Selesai! Video dengan suara siap diunduh.');
+                
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    statusBadge.style.display = 'none';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                updateProgress(0, 'Error: ' + (error.message || 'Gagal merekam'));
+                document.getElementById('progressFill').style.background = 'linear-gradient(90deg, #ff4444, #ff006e)';
+            } finally {
+                isRecording = false;
+                isPlaying = false;
+                cancelAnimationFrame(animationId);
+                speechSynthesis.cancel();
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '🎬 Generate Video + Suara';
+            }
+        }
+
+        function addToHistory(text, url) {
+            const historyList = document.getElementById('historyList');
+            const date = new Date().toLocaleTimeString('id-ID');
+            const preview = text.substring(0, 60) + (text.length > 60 ? '...' : '');
+            
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="color:#00d4ff;">${date}</strong>
+                    <span style="font-size:0.75em; color:#00ff88;">✓ Dengan Suara</span>
+                </div>
+                <div style="margin-top:6px; color:#e0e0ff;">${preview}</div>
+            `;
+            item.onclick = () => {
+                const resultVideo = document.getElementById('resultVideo');
+                const downloadWebm = document.getElementById('downloadWebm');
+                resultVideo.src = url;
+                downloadWebm.href = url;
+                document.getElementById('downloadSection').classList.add('active');
+                resultVideo.scrollIntoView({ behavior: 'smooth' });
+            };
+            
+            if (historyList.children[0]?.textContent.includes('Belum ada')) {
+                historyList.innerHTML = '';
+            }
+            
+            historyList.insertBefore(item, historyList.firstChild);
+        }
+
+        function clearAll() {
+            document.getElementById('textInput').value = '';
+            document.getElementById('downloadSection').classList.remove('active');
+            stopPreview();
+            updateStats();
+            renderFrame();
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (isRecording) {
+                speechSynthesis.cancel();
+            }
+        });
+    </script>
+</body>
+</html>
